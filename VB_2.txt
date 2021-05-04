@@ -1,0 +1,134 @@
+Dim RD, prevRD, HighestOD, SecondOD, ThirdOD, PrevHighestOD, PrevSecondOD, PrevThirdOD, AverageTop3OD, PrevAverageTop3OD, IncubateFor
+
+
+If Not World.Globals.Browserman.Simulating then
+'Pause in Runtime to wait for data
+World.Globals.PauseGenerator.StallUntilETSIs 0
+
+end if
+
+'Pick the current Abs0* values by reading out AbsCycle
+'1st cycle Abs02 ReaderData, Abs01 PrevReaderData
+
+CurrentCycle = Properties("P1").AbsCycle
+PreviousCycle = Properties("P1").AbsCycle-1
+
+AbsCurrent = cstr("Abs0"+cstr(CurrentCycle))
+AbsPrevious = "Abs0"+cstr(PreviousCycle)
+
+
+Positions.P1.Labware.DataSets.rename(AbsPrevious), ("PrevReaderData")
+
+'Cycle through current OD measurement and find top3 ODS
+
+Set RD = Labware("P1").Datasets.ReaderData
+Set prevRD = Labware("P1").Datasets.prevReaderData
+
+HighestOD = 0.001
+SecondOD = 0.001
+ThirdOD = 0.001
+
+PrevHighestOD = 0.001
+PrevSecondOD = 0.001
+PrevThirdOD = 0.001
+
+AverageTop3OD = Properties("P1").AverageTop3OD
+PrevAverageTop3OD = Properties("P1").PrevAverageTop3OD
+IncubateFor = Properties("P1").IncubateFor
+
+
+'find highest 3 OD value and average. Same wells current (driver) and previous read (reference)
+
+For i = 1 to 96
+
+   If RD(i) >= ThirdOD then
+      If RD(i) >= SecondOD then
+         If RD(i) >= HighestOD then
+            ThirdOD = SecondOD
+            SecondOD = HighestOD
+            HighestOD = RD(i)
+            
+            PrevThirdOD = PrevSecondOD
+            PrevSecondOD = PrevHighestOD
+            PrevHighestOD = PrevRD(i)
+               
+         Else
+            ThirdOD = SecondOD
+            SecondOD = RD(i)
+
+            PrevThirdOD = PrevSecondOD
+            PrevSecondOD = PrevRD(i)
+
+         End If
+      Else
+         ThirdOD = RD(i)
+
+         PrevThirdOD = PrevRD(i)
+      End if
+   
+   End if
+               
+AverageTop3OD = HighestOD/3 + SecondOD/3 + ThirdOD/3
+
+PrevAverageTop3OD = PrevHighestOD/3 + PrevSecondOD/3 + PrevThirdOD/3
+
+         
+Next
+
+Labware("P1").SetProperty World, "AverageTop3OD", cdbl(AverageTop3OD)
+
+Labware("P1").SetProperty World, "PrevAverageTop3OD", cdbl(PrevAverageTop3OD)
+
+'archive previous incubation time measurement for the plate
+
+Labware("P1").SetProperty World, "PrevIncubateFor", cLng(Properties("P1").IncubateFor)
+
+
+' if no wells have triggered the target OD, estimate required growth time until then.
+
+
+If Properties("P1").Hitwells = 0 then
+
+   log2ODlow = log(PrevAverageTop3OD)/log(2)
+   log2ODhigh = log(AverageTop3OD)/log(2)
+   log2TargetOD = log(Properties("P1").TargetODPlate)/log(2)
+
+   prevDuration = Properties("P1").PrevIncubateFor
+   
+   slope = (0.000001 + log2ODhigh - log2ODlow)/prevDuration
+
+   EstToTarget = cdbl((log2TargetOD - log2ODhigh)/slope)
+
+' limit maximum incubation to 9 hours (under cInt max, had problems with cLng) and catch oddities with 2 hour incubation backup step
+
+   If EstToTarget >= 32400 then
+      EstToTarget = 32400
+
+   end if
+
+   If EstToTarget < 1 then
+      EstToTarget = 7200
+
+   end if
+
+
+'Write new incubation time for the plate
+   
+   Labware("P1").SetProperty World, "IncubateFor", EstToTarget
+   ' backup    Labware("P1").SetProperty World, "IncubateFor", cLng(EstToTarget)
+
+
+End if
+
+
+Positions.P1.Labware.DataSets.remove("ReaderData")
+Positions.P1.Labware.DataSets.remove("PrevReaderData")  
+
+
+ 
+
+
+    
+
+
+

@@ -1,0 +1,55 @@
+dim RD, HitTargetOD, TargetOD, AnyHits
+
+
+If Not World.Globals.Browserman.Simulating then
+'Pause in Runtime to wait for data
+World.Globals.PauseGenerator.StallUntilETSIs 0
+
+end if
+
+'Decide if any well has hit targetOD. True in any well will be read in SAMI and trigger the dilution step
+
+'Pick the current Abs0* values by reading out AbsCycle
+'e.g. 1st cycle Abs02 ReaderData, Abs01 PrevReaderData
+
+CurrentCycle = Properties("P1").AbsCycle
+PreviousCycle = Properties("P1").AbsCycle-1
+
+AbsCurrent = cstr("Abs0"+cstr(CurrentCycle))
+AbsPrevious = "Abs0"+cstr(PreviousCycle)
+
+
+Positions.P1.Labware.DataSets.rename(AbsCurrent), ("ReaderData")
+
+
+Set RD = Labware("P1").Datasets.ReaderData
+Set HitTargetOD = Labware("P1").Datasets.HitTargetOD
+Set TargetOD = Labware("P1").Datasets.TargetOD
+
+AnyHits = 0
+
+For i = 1 to 96
+
+   If RD(i) > TargetOD(i) then
+
+      HitTargetOD(i) = "hit"
+      AnyHits = AnyHits + 1
+
+   End If
+
+Next
+
+
+'Write Labware property
+
+Labware("P1").SetProperty World, "HitWells", AnyHits
+
+
+
+ 
+
+
+    
+
+
+
